@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Knapsack Visualizer — 0/1 Dynamic Programming Simulator</title>
+  <link rel="icon" type="image/svg+xml" href="/src/assets/backpack.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <!-- Top Navigation & Global Controls -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-logo" aria-hidden="true">
+          <img src="/src/assets/backpack.svg" alt="" width="20" height="20" />
+        </div>
+        <div>
+          <div class="brand-title-row">
+            <h1>Knapsack Visualizer</h1>
+            <span class="academic-badge">0/1 Dynamic Programming</span>
+          </div>
+          <p class="brand-subtitle">Academic Algorithm Simulator — Python &amp; Flask Backend</p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="capacity-control-card">
+          <label for="capacity-input" class="control-label">
+            <span>Backpack Capacity (W)</span>
+            <strong id="capacity-badge-value">10 kg</strong>
+          </label>
+          <div class="capacity-inputs">
+            <input type="range" id="capacity-slider" min="1" max="25" value="10" aria-label="Backpack Capacity Slider" />
+            <input type="number" id="capacity-input" min="1" max="50" value="10" aria-label="Backpack Capacity Number" />
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button type="button" id="btn-solve-python" class="btn btn-primary" title="Execute backend/knapsack.py and load step-by-step simulation">
+            <span>Run Algorithm</span>
+          </button>
+          <div id="backend-status" class="status-pill status-connecting" title="Python Flask API Status">
+            <span class="status-dot"></span>
+            <span id="backend-status-text">Connecting to Python...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- SECTION 1: ITEM GALLERY & INTERACTIVE BACKPACK -->
+    <section class="workspace-top-grid" aria-label="Items and Backpack Workspace">
+      <!-- Item Gallery Panel -->
+      <div class="panel gallery-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title-group">
+              <h2 class="panel-title">Available Items</h2>
+              <span id="item-count-badge" class="count-pill">4 items</span>
+            </div>
+            <p class="panel-desc">Drag items into the backpack or click an item to pack or unpack it.</p>
+          </div>
+          <div class="panel-header-actions">
+            <button type="button" id="btn-reset-items" class="btn btn-ghost btn-sm" title="Restore default academic dataset">
+              Reset Default
+            </button>
+            <button type="button" id="btn-add-item" class="btn btn-secondary btn-sm">
+              <span>+ Add Item</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="items-gallery" class="items-gallery-grid" role="list" aria-label="Available items">
+          <!-- Rendered dynamically by visualization.js -->
+        </div>
+      </div>
+
+      <!-- Interactive Backpack Panel -->
+      <div class="panel backpack-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Backpack Container</h2>
+            <p class="panel-desc">Drop items below or load the optimal subset calculated by Python.</p>
+          </div>
+          <div class="panel-header-actions">
+            <button type="button" id="btn-load-optimal-bag" class="btn btn-secondary btn-sm" title="Pack the optimal subset calculated by Python">
+              Load Optimal Subset
+            </button>
+            <button type="button" id="btn-clear-bag" class="btn btn-ghost btn-sm" title="Remove all items from backpack">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Alert Toast inside backpack panel for capacity overflow -->
+        <div id="backpack-alert" class="backpack-alert" role="status" aria-live="polite" hidden></div>
+
+        <div class="backpack-stage">
+          <!-- Clean, Structured Interactive Dropzone Backpack -->
+          <div id="backpack-dropzone" class="backpack-illustration-wrapper" aria-label="Backpack drop zone">
+            <div class="backpack-top-handle" aria-hidden="true"></div>
+            <div class="backpack-shell">
+              <!-- Top Header Bar of Backpack -->
+              <div class="backpack-flap">
+                <span class="flap-badge-label">Capacity Usage</span>
+                <strong id="bag-flap-capacity">0 / 10 kg</strong>
+              </div>
+
+              <!-- Capacity Fill Progress Bar -->
+              <div class="backpack-meter-bar" title="Backpack weight utilization">
+                <div id="backpack-meter-fill" class="backpack-meter-fill" style="width: 0%"></div>
+              </div>
+
+              <!-- Interior Compartment where items live -->
+              <div class="backpack-compartment">
+                <div id="backpack-empty-hint" class="backpack-empty-state">
+                  <p>No items packed in the backpack</p>
+                  <span>Drag an item card here, click an item card, or click "Load Optimal Subset".</span>
+                </div>
+                <div id="backpack-items-container" class="backpack-packed-grid" role="list" aria-label="Items inside backpack"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Backpack Telemetry Stats -->
+          <div class="backpack-telemetry">
+            <div class="telemetry-card telemetry-value">
+              <span class="telemetry-label">Packed Value</span>
+              <strong id="bag-current-value" class="telemetry-number">$0</strong>
+              <span id="bag-optimal-comparison" class="telemetry-sub">Optimal DP: $0</span>
+            </div>
+            <div class="telemetry-card telemetry-weight">
+              <span class="telemetry-label">Total Weight</span>
+              <strong id="bag-current-weight" class="telemetry-number">0 kg</strong>
+              <span id="bag-weight-percent" class="telemetry-sub">0% capacity used</span>
+            </div>
+            <div class="telemetry-card telemetry-remaining">
+              <span class="telemetry-label">Remaining Capacity</span>
+              <strong id="bag-remaining-capacity" class="telemetry-number">10 kg</strong>
+              <span id="bag-item-count" class="telemetry-sub">0 items packed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: STEP-BY-STEP SIMULATION CONTROLS & CURRENT STEP INSPECTOR -->
+    <section class="panel simulation-control-panel" aria-label="Step-by-step Simulation Controls">
+      <div class="panel-header sim-panel-header">
+        <div>
+          <h2 class="panel-title">Step-by-Step Algorithm Simulation</h2>
+          <p class="panel-desc">Step through each cell evaluation performed by the Python Dynamic Programming implementation.</p>
+        </div>
+      </div>
+
+      <div class="sim-toolbar">
+        <div class="sim-buttons-group">
+          <button type="button" id="btn-sim-restart" class="btn btn-icon-control" title="Restart Simulation (Step 0)" aria-label="Restart Simulation">
+            |&lt;
+          </button>
+          <button type="button" id="btn-sim-prev" class="btn btn-icon-control" title="Previous Step" aria-label="Previous Step">
+            &lt; Prev
+          </button>
+          <button type="button" id="btn-sim-play" class="btn btn-play-main" title="Play or Pause Step-by-Step Simulation">
+            <span id="play-btn-icon">▶</span>
+            <span id="play-btn-text">Play</span>
+          </button>
+          <button type="button" id="btn-sim-next" class="btn btn-icon-control" title="Next Step" aria-label="Next Step">
+            Next &gt;
+          </button>
+          <button type="button" id="btn-sim-end" class="btn btn-icon-control" title="Jump to Final Result" aria-label="Jump to Final Result">
+            &gt;|
+          </button>
+        </div>
+
+        <div class="sim-scrubber-group">
+          <div class="sim-step-meta">
+            <span id="sim-step-counter" class="step-counter-badge">Step 0 / 0</span>
+            <span id="sim-cell-coords" class="cell-coords-badge">Cell dp[0][0]</span>
+          </div>
+          <input type="range" id="sim-step-slider" min="0" max="0" value="0" aria-label="Simulation Step Scrubber" />
+        </div>
+
+        <div class="sim-speed-group">
+          <label for="sim-speed-select" class="speed-label">Speed</label>
+          <select id="sim-speed-select" class="speed-select" aria-label="Simulation Speed">
+            <option value="1200">0.5x (Slow)</option>
+            <option value="650" selected>1x (Normal)</option>
+            <option value="320">2x (Fast)</option>
+            <option value="140">4x (Very Fast)</option>
+            <option value="50">8x (Max)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Current Step Live Decision Breakdown -->
+      <div class="step-inspector-grid">
+        <!-- Current Context Card -->
+        <div class="inspector-card inspector-context">
+          <div class="inspector-header">
+            <span class="inspector-tag">Current State</span>
+            <span id="step-status-pill" class="decision-pill decision-init">Base Case</span>
+          </div>
+          <div id="step-item-display" class="step-item-box">
+            <span class="step-item-icon">∅</span>
+            <div>
+              <strong id="step-item-name">Initializing DP Table</strong>
+              <p id="step-item-specs">Row i = 0, Capacity w = 0</p>
+            </div>
+          </div>
+          <div class="formula-box">
+            <span class="formula-label">Recurrence Relation</span>
+            <code id="step-formula-code">dp[0][0..W] = 0</code>
+          </div>
+        </div>
+
+        <!-- Include Decision Card -->
+        <div id="card-decision-include" class="inspector-card inspector-decision">
+          <div class="inspector-header">
+            <span class="inspector-tag tag-include">Include Decision</span>
+            <strong id="step-include-val" class="decision-score">—</strong>
+          </div>
+          <p id="step-include-Automated" class="decision-explanation">
+            Checks if item weight fits in current sub-capacity w, adding its value to dp[i-1][w - weight].
+          </p>
+        </div>
+
+        <!-- Exclude Decision Card -->
+        <div id="card-decision-exclude" class="inspector-card inspector-decision">
+          <div class="inspector-header">
+            <span class="inspector-tag tag-exclude">Exclude Decision</span>
+            <strong id="step-exclude-val" class="decision-score">0</strong>
+          </div>
+          <p id="step-exclude-explanation" class="decision-explanation">
+            Preserves previous best value achieved without this item at capacity w: dp[i-1][w].
+          </p>
+        </div>
+
+        <!-- Selected Maximum Value Card -->
+        <div class="inspector-card inspector-selected">
+          <div class="inspector-header">
+            <span class="inspector-tag tag-selected">Selected Maximum (dp[i][w])</span>
+          </div>
+          <div class="selected-max-display">
+            <strong id="step-selected-val" class="selected-max-number">0</strong>
+            <p id="step-summary-text" class="selected-max-summary">
+              Use the simulation controls above to step through each cell calculation.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: PYTHON CODE PANEL & DYNAMIC PROGRAMMING TABLE -->
+    <section class="workspace-mid-grid" aria-label="Python Code and DP Table">
+      <!-- Dedicated Python Source Code Panel -->
+      <div class="panel code-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title-group">
+              <h2 class="panel-title">Python Source Code</h2>
+              <span class="file-path-badge">backend/knapsack.py</span>
+            </div>
+            <p class="panel-desc">Actual Python implementation executed on the backend. Active lines highlight during simulation.</p>
+          </div>
+          <div class="code-view-toggle" role="group" aria-label="Python Source View Mode">
+            <button type="button" id="btn-code-core" class="btn-tab active">Core Function</button>
+            <button type="button" id="btn-code-full" class="btn-tab">Full File</button>
+          </div>
+        </div>
+
+        <div class="code-editor-window">
+          <div class="code-editor-topbar">
+            <span class="editor-filename">knapsack.py</span>
+            <span id="active-line-indicator" class="active-line-pill">Lines: 2, 4</span>
+          </div>
+          <div id="python-code-container" class="code-lines-container" role="region" aria-label="Python Source Code">
+            <!-- Rendered dynamically with syntax highlighting and line numbers -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Dedicated Dynamic Programming Table Panel -->
+      <div class="panel dp-table-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Dynamic Programming Table (dp[i][w])</h2>
+            <p class="panel-desc">Click any cell to inspect its calculation step. Rows represent items (i); columns represent capacities (w).</p>
+          </div>
+          <div class="dp-legend">
+            <span class="legend-item"><i class="legend-swatch swatch-active"></i> Active Cell</span>
+            <span class="legend-item"><i class="legend-swatch swatch-include"></i> Include Lookup</span>
+            <span class="legend-item"><i class="legend-swatch swatch-exclude"></i> Exclude Lookup</span>
+            <span class="legend-item"><i class="legend-swatch swatch-optimal"></i> Optimal Solution</span>
+          </div>
+        </div>
+
+        <div class="dp-table-scroll-wrapper">
+          <table id="dp-table" class="dp-matrix-table" aria-label="Dynamic Programming Matrix">
+            <!-- Generated dynamically from Python backend results -->
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: FINAL OPTIMAL RESULTS PANEL -->
+    <section class="panel results-panel" aria-label="Final Optimal Algorithm Results">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Optimal Solution Summary</h2>
+          <p class="panel-desc">Computed by <code>knapsack(weights, values, capacity)</code> in <code>backend/knapsack.py</code>.</p>
+        </div>
+        <button type="button" id="btn-sync-optimal-results" class="btn btn-primary btn-sm">
+          <span>Show Optimal Items in Backpack</span>
+        </button>
+      </div>
+
+      <div class="results-summary-grid">
+        <div class="result-stat-card stat-highlight">
+          <span class="result-stat-label">Maximum Achievable Value</span>
+          <strong id="res-max-value" class="result-stat-value">$0</strong>
+          <span class="result-stat-note">Optimal value at dp[n][W]</span>
+        </div>
+
+        <div class="result-stat-card">
+          <span class="result-stat-label">Total Weight Used</span>
+          <strong id="res-total-weight" class="result-stat-value">0 / 10 kg</strong>
+          <span id="res-weight-note" class="result-stat-note">Within capacity constraint</span>
+        </div>
+
+        <div class="result-stat-card">
+          <span class="result-stat-label">Remaining Capacity</span>
+          <strong id="res-remaining-capacity" class="result-stat-value">10 kg</strong>
+          <span class="result-stat-note">Unused backpack capacity</span>
+        </div>
+
+        <div class="result-stat-card result-items-card">
+          <span class="result-stat-label">Selected Optimal Items (<span id="res-selected-count">0</span>)</span>
+          <div id="res-selected-items-list" class="result-selected-items-list">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Native Modal Dialog for Adding / Editing an Item -->
+  <dialog id="item-modal" class="item-dialog" closedby="any" aria-labelledby="item-modal-title">
+    <form id="item-form" method="dialog" class="dialog-form">
+      <div class="dialog-header">
+        <h2 id="item-modal-title">Add New Item</h2>
+        <button type="button" id="btn-close-modal" class="btn-close-dialog" aria-label="Close modal">✕</button>
+      </div>
+
+      <div class="dialog-body">
+        <input type="hidden" id="item-id-input" />
+
+        <div class="form-group">
+          <label for="item-name-input">Item Name</label>
+          <input type="text" id="item-name-input" required maxlength="32" placeholder="e.g., DSLR Camera" autofocus />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="item-weight-input">Weight (kg)</label>
+            <input type="number" id="item-weight-input" required min="1" max="50" value="3" />
+          </div>
+          <div class="form-group">
+            <label for="item-value-input">Value ($)</label>
+            <input type="number" id="item-value-input" required min="1" max="500" value="10" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Icon</label>
+          <div id="icon-picker" class="icon-picker-grid" role="radiogroup" aria-label="Item Icon">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Tag Color</label>
+          <div id="color-picker" class="color-picker-row" role="radiogroup" aria-label="Card Accent Color">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="dialog-footer">
+        <button type="button" id="btn-cancel-modal" class="btn btn-ghost">Cancel</button>
+        <button type="submit" id="btn-save-item" class="btn btn-primary">Save Item</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
