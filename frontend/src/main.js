@@ -9,7 +9,7 @@ import {
   renderFinalResults
 } from "./visualization.js";
 
-const API_BASE_URL = "http://127.0.0.1:5000/api";
+const API_BASE_URL = "https://abdelrhman.pythonanywhere.com/api";
 
 const DEFAULT_ITEMS = [
   { id: 1, name: "Solar Power Bank", weight: 2, value: 9, icon: "🔋", color: "#0284c7" },
